@@ -3,6 +3,9 @@ package pl.mariusz.marciniak.sudoku
 object SudokuBoardUtil {
   def size = 9;
   def squareSize = 3;
+  val DEBUG = true;
+  def log(message: String) = if(DEBUG) println(message)
+  def logBoard(board: SudokuBoard) = if(DEBUG) board.foreach(v => println(v mkString("::")))
 
   type SudokuBoard = Seq[Seq[SudokuCell]]
 
@@ -88,7 +91,7 @@ object SudokuBoardUtil {
 
 
   def solveSudoku(board: SudokuBoard): SudokuBoard = {
-    println("--------------------------------------------------")
+    log("--------------------------------------------------")
     val score = getBoardScore(board)
     if (score == size * size) {
       board
@@ -98,7 +101,7 @@ object SudokuBoardUtil {
       if (newBoard == null || isBoardInvalid(newBoard)) 
         throw new SudokuAlgorithmException("Invalid board")
       else {
-        newBoard.foreach(v => println(v mkString("::")))
+        logBoard(newBoard)
 
         if (getBoardScore(newBoard) == score) 
           choosePossibleValue(newBoard)
@@ -113,17 +116,18 @@ object SudokuBoardUtil {
   }
 
   def choosePossibleValue(board: SudokuBoard): SudokuBoard = {
+    val min = (board.flatten.minBy(x=> if(x.isDefined) 99 else x.getPossibleValues.size)).getPossibleValues.size
     def boards = for {
       r <- 0 to size - 1
       c <- 0 to size - 1
-      if (board(r)(c).getPossibleValues.length == 2)
+      if (board(r)(c).getPossibleValues.length == min)
       v <- board(r)(c).getPossibleValues
     } yield replaceCell(r, c, board, new SudokuCell(List(v)))
     try {
-        boards.foldLeft[SudokuBoard](null)((b1,b2) => if(b1==null) solveSudoku(b2) else b1)
+       boards.foldLeft[SudokuBoard](null)((b1,b2) => if(b1==null) solveSudoku(b2) else b1)
     } catch {
       case e :SudokuAlgorithmException => { 
-        println("Exception:"+e.getMessage)
+        log("Exception:"+e.getMessage)
         null
       }
     }
