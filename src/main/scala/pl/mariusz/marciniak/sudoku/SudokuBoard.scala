@@ -1,11 +1,16 @@
 package pl.mariusz.marciniak.sudoku
 
 object SudokuBoardUtil {
-  def size = 9;
-  def squareSize = 3;
-  val DEBUG = false;
-  def log(message: String) = if(DEBUG) println(message)
-  def logBoard(board: SudokuBoard) = if(DEBUG) board.foreach(v => println(v mkString("::")))
+  val Size = 9;
+  val SquareSize = 3;
+  val Debug = true;
+  val DuplicatesInRow = new SudokuAlgorithmException("Duplicates in row")
+  val DuplicatesInColumn = new SudokuAlgorithmException("Duplicates in column")
+  val DuplicatesInSquare = new SudokuAlgorithmException("Duplicates in square")
+  val InvalidBoard = new SudokuAlgorithmException("Invalid board")
+
+  def log(message: String) = if(Debug) println(message)
+  def logBoard(board: SudokuBoard) = if(Debug) board.foreach(v => println(v mkString("::")))
 
   type SudokuBoard = Seq[Seq[SudokuCell]]
 
@@ -28,26 +33,26 @@ object SudokuBoardUtil {
   } yield cell.getPossibleValues(0)
 
   def elementsDefinedInColumn(col: Int, board: SudokuBoard): Seq[Int] = for {
-    row <- 0 to size - 1
+    row <- 0 to Size - 1
     if (board(row)(col) != null && board(row)(col).isDefined)
   } yield board(row)(col).getPossibleValues(0)
 
-  def squareFirstRow(row: Int): Int = row / squareSize * squareSize
+  def squareFirstRow(row: Int): Int = row / SquareSize * SquareSize
 
-  def squareFirstColumn(col: Int): Int = col / squareSize * squareSize
+  def squareFirstColumn(col: Int): Int = col / SquareSize * SquareSize
 
   def elementsDefinedInSquare(row: Int, col: Int, board: SudokuBoard): Seq[Int] = {
     val sqR = squareFirstRow(row)
     val sqC = squareFirstColumn(col)
     for {
-      r <- sqR to sqR + squareSize - 1
-      c <- sqC to sqC + squareSize - 1
+      r <- sqR to sqR + SquareSize - 1
+      c <- sqC to sqC + SquareSize - 1
       if (board(r)(c) != null && board(r)(c).isDefined)
     } yield board(r)(c).getPossibleValues(0)
   }
 
   def elementsNotIn(coll: Seq[Int]): Seq[Int] = for {
-    v <- 1 to size
+    v <- 1 to Size
     if (!coll.contains(v))
   } yield v
 
@@ -61,29 +66,29 @@ object SudokuBoardUtil {
 
   def calculatePossibleValuesForCells(board: SudokuBoard): SudokuBoard = {
     val elementsInRows = for {
-      r <- 0 to size - 1
+      r <- 0 to Size - 1
     } yield elementsDefinedInRow(r, board)
-    if (elementsInRows.find(row => hasDuplicates(row)) != None) throw new SudokuAlgorithmException("Duplicates in row")
+    if (elementsInRows.find(row => hasDuplicates(row)) != None) throw DuplicatesInRow
     
     val elementsInColumns = for {
-      c <- 0 to size - 1
+      c <- 0 to Size - 1
     } yield elementsDefinedInColumn(c, board)
-    if (elementsInColumns.find(column => hasDuplicates(column)) != None) throw new SudokuAlgorithmException("Duplicates in column")
+    if (elementsInColumns.find(column => hasDuplicates(column)) != None) throw DuplicatesInColumn
 
     val elementsInSquare = for {
-      r <- 0 to size - 1 by squareSize
-      c <- 0 to size - 1 by squareSize
+      r <- 0 to Size - 1 by SquareSize
+      c <- 0 to Size - 1 by SquareSize
     } yield elementsDefinedInSquare(r, c, board)
-    if (elementsInSquare.find(square => hasDuplicates(square)) != None) throw new SudokuAlgorithmException("Duplicates in square")
+    if (elementsInSquare.find(square => hasDuplicates(square)) != None) throw DuplicatesInSquare
 
     def calculateBoard(board: SudokuBoard): SudokuBoard = {
-      (0 to size - 1) map (r => calculateRow(r, board))
+      (0 to Size - 1) map (r => calculateRow(r, board))
     }
 
     def calculateRow(r: Int, board: SudokuBoard): Seq[SudokuCell] = {
-      (0 to size - 1) map (c =>
+      (0 to Size - 1) map (c =>
         if (board(r)(c) == null || !board(r)(c).isDefined) {
-          new SudokuCell(elementsNotIn(elementsInRows(r) ++ elementsInColumns(c) ++ elementsInSquare((r / squareSize) * (size / squareSize) + c / squareSize)))
+          new SudokuCell(elementsNotIn(elementsInRows(r) ++ elementsInColumns(c) ++ elementsInSquare((r / SquareSize) * (Size / SquareSize) + c / SquareSize)))
         } else
           board(r)(c))
     }
@@ -94,13 +99,13 @@ object SudokuBoardUtil {
   def solveSudoku(board: SudokuBoard): SudokuBoard = {
     log("--------------------------------------------------")
     val score = boardScore(board)
-    if (score == size * size) {
+    if (score == Size * Size) {
       board
     } else {
       val newBoard = calculatePossibleValuesForCells(board)
 
       if (newBoard == null || isBoardInvalid(newBoard)) 
-        throw new SudokuAlgorithmException("Invalid board")
+        throw InvalidBoard
       else {
         logBoard(newBoard)
 
@@ -119,8 +124,8 @@ object SudokuBoardUtil {
   def choosePossibleValue(board: SudokuBoard): SudokuBoard = {
     val min = (board.flatten.minBy(x=> if(x.isDefined) 99 else x.getPossibleValues.size)).getPossibleValues.size
     def boards = for {
-      r <- 0 to size - 1
-      c <- 0 to size - 1
+      r <- 0 to Size - 1
+      c <- 0 to Size - 1
       if (board(r)(c).getPossibleValues.length == min)
       v <- board(r)(c).getPossibleValues
     } yield replaceCell(r, c, board, new SudokuCell(List(v)))
@@ -128,7 +133,7 @@ object SudokuBoardUtil {
        boards.foldLeft[SudokuBoard](null)((b1,b2) => if(b1==null) solveSudoku(b2) else b1)
     } catch {
       case e :SudokuAlgorithmException => {
-        log("Exception:"+e.getMessage)
+        log(s"${e.getMessage}. Recalculating board")
         null
       }
     }
